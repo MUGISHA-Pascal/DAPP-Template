@@ -2,20 +2,17 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import SimpleStorageABI from "./HelloWorld.json";
 
-const contractAddress = "0x43440FC37D1E8Ac2Db93512628675F18b6b2a6b7";
+const contractAddress = "0xF349aF4E1b3F5CD74F308d11f7e28B9E18a802e8";
 
 function App() {
-  const [userName, setUserName] = useState("");
-  const [value, setValue] = useState("");
-  const [storedValue, setStoredValue] = useState("Loading...");
   const [walletConnected, setWalletConnected] = useState(false);
-  const [helloMessage, setHelloMessage] = useState("");
-  const [yourName, setYourName] = useState("");
   const [signer, setSigner] = useState(null);
+  const [helloMessage, setHelloMessage] = useState(
+    "Connect wallet to fetch message"
+  );
 
   useEffect(() => {
     checkWalletConnection();
-    fetchStoredValue();
   }, []);
 
   async function checkWalletConnection() {
@@ -24,38 +21,51 @@ function App() {
       const accounts = await window.ethereum.request({
         method: "eth_accounts",
       });
+
       if (accounts.length > 0) {
         setWalletConnected(true);
-        setSigner(await provider.getSigner());
+        const signerInstance = await provider.getSigner();
+        setSigner(signerInstance);
+        fetchStoredValue(signerInstance);
       }
     }
   }
 
   async function connectWallet() {
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      setWalletConnected(true);
-      setSigner(await provider.getSigner());
-      alert("Wallet Connected!");
-      fetchStoredValue();
-    } else {
-      alert("Please install MetaMask.");
+    if (!window.ethereum) {
+      alert("MetaMask not detected. Please install MetaMask.");
+      return;
     }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    const signerInstance = await provider.getSigner();
+    setWalletConnected(true);
+    setSigner(signerInstance);
+    alert("Wallet connected successfully!");
+
+    fetchStoredValue(signerInstance);
   }
 
-  async function getContract() {
-    if (!signer) return null;
-    return new ethers.Contract(contractAddress, SimpleStorageABI.abi, signer);
+  async function getContract(signerInstance) {
+    if (!signerInstance) return null;
+    return new ethers.Contract(
+      contractAddress,
+      SimpleStorageABI.abi,
+      signerInstance
+    );
   }
 
-  async function fetchStoredValue() {
-    const contract = await getContract();
+  async function fetchStoredValue(signerInstance) {
+    const contract = await getContract(signerInstance);
     if (contract) {
-      const hello_message = contract.getMessage();
-      setHelloMessage(hello_message);
+      try {
+        const message = await contract.getMessage(); // Call Solidity function
+        setHelloMessage(message);
+      } catch (error) {
+        console.error("Error fetching message:", error);
+      }
     }
   }
 
@@ -63,18 +73,19 @@ function App() {
     <div style={styles.container}>
       <h1 style={styles.title}>Welcome to Simple Storage DApp</h1>
       <h2>
-        {" "}
-        Greetings from the blockchain{" "}
+        Greetings from the blockchain:{" "}
         <span style={styles.helloMessage}>{helloMessage}</span>
       </h2>
       <p style={styles.subtitle}>
         Store and retrieve values securely on the blockchain.
       </p>
 
-      {walletConnected && (
+      {!walletConnected ? (
         <button style={styles.button} onClick={connectWallet}>
           Connect Wallet
         </button>
+      ) : (
+        <p style={styles.connectedMessage}>✅ Wallet Connected</p>
       )}
     </div>
   );
@@ -98,20 +109,10 @@ const styles = {
   subtitle: {
     color: "#666",
   },
-  welcomeMessage: {
+  helloMessage: {
     color: "#4CAF50",
     fontSize: "20px",
     fontWeight: "bold",
-  },
-  inputContainer: {
-    marginTop: "20px",
-  },
-  input: {
-    padding: "10px",
-    fontSize: "16px",
-    borderRadius: "5px",
-    border: "1px solid #ccc",
-    marginRight: "10px",
   },
   button: {
     padding: "10px 20px",
@@ -123,17 +124,9 @@ const styles = {
     cursor: "pointer",
     transition: "0.3s",
   },
-  buttonHover: {
-    backgroundColor: "#0056b3",
-  },
-  storedValue: {
-    marginTop: "20px",
-    fontSize: "20px",
-    fontWeight: "bold",
-  },
-  helloMessage: {
+  connectedMessage: {
     color: "#4CAF50",
-    fontSize: "20px",
+    fontSize: "18px",
     fontWeight: "bold",
   },
 };
